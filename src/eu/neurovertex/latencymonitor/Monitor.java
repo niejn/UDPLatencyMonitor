@@ -1,7 +1,9 @@
 package eu.neurovertex.latencymonitor;
 
-import java.net.*;
-import java.io.*;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Observable;
 import java.util.Timer;
@@ -18,7 +20,7 @@ public class Monitor extends Observable implements Runnable {
 	private final LatencyRingBuffer buffer;
 	private final int port;
 	private long startTime;
-	private Thread thread;
+	private Thread thread, notifyThread;
 	private volatile int id = 0;
 	private volatile boolean stop = false;
 	private long lastUpdate = System.currentTimeMillis();
@@ -27,7 +29,8 @@ public class Monitor extends Observable implements Runnable {
 		this.delay = delay;
 		this.addr = addr;
 		this.port = port;
-		socket = new DatagramSocket(null);
+		socket = new DatagramSocket();
+		System.out.println("Receive buffer : "+ socket.getReceiveBufferSize());
 		buffer = new LatencyRingBuffer(1024);
 	}
 
@@ -50,12 +53,16 @@ public class Monitor extends Observable implements Runnable {
 	public synchronized void start() {
 		thread = new Thread(this);
 		thread.setDaemon(true);
+		notifyThread = new Thread(new NotifyThread());
+		notifyThread.setDaemon(true);
 		thread.start();
+		notifyThread.start();
 		new Timer(true).scheduleAtFixedRate(new PingThread(), delay, delay);
 	}
 
 	public synchronized void stopMonitor() {
 		thread.interrupt();
+		notifyThread.interrupt();
 	}
 
 	@Override
@@ -70,7 +77,10 @@ public class Monitor extends Observable implements Runnable {
 				long lat = getLatency(i);
 				//System.out.printf("Received:%d. Latency : %d%n", i, lat);
 				buffer.set(i, lat);
-				notifyObservers();
+				setChanged();
+				synchronized (this) {
+					notifyAll();
+				}
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -87,6 +97,22 @@ public class Monitor extends Observable implements Runnable {
 			setChanged();
 			super.notifyObservers();
 			lastUpdate = System.currentTimeMillis();
+		}
+	}
+
+	private class NotifyThread implements Runnable {
+		@Override
+		public void run() {
+			try {
+				while (!Thread.currentThread().isInterrupted()) {
+					synchronized (Monitor.this) {
+						wait();
+					}
+					notifyObservers();
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 		}
 	}
 

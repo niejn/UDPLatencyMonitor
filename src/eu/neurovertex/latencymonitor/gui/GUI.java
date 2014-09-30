@@ -146,7 +146,7 @@ public class GUI extends MouseAdapter implements MouseMotionListener, Observer {
 				if (!found && panelBuffer[i] > 0) {
 					found = true;
 					last = panelBuffer.length - 1 - i;
-				} else {
+				} else if (found) {
 					if (panelBuffer[i] <= 0) {
 						if (i < panelBuffer.length - 1)
 							lost++;
