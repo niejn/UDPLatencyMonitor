@@ -20,7 +20,7 @@ public class Monitor extends Observable implements Runnable {
 	private final LatencyRingBuffer buffer;
 	private final int port;
 	private long startTime;
-	private Thread thread, notifyThread;
+	private Thread thread;
 	private volatile int id = 0;
 	private volatile boolean stop = false;
 	private long lastUpdate = System.currentTimeMillis();
@@ -53,16 +53,12 @@ public class Monitor extends Observable implements Runnable {
 	public synchronized void start() {
 		thread = new Thread(this);
 		thread.setDaemon(true);
-		notifyThread = new Thread(new NotifyThread());
-		notifyThread.setDaemon(true);
 		thread.start();
-		notifyThread.start();
 		new Timer(true).scheduleAtFixedRate(new PingThread(), delay, delay);
 	}
 
 	public synchronized void stopMonitor() {
 		thread.interrupt();
-		notifyThread.interrupt();
 	}
 
 	@Override
@@ -75,12 +71,7 @@ public class Monitor extends Observable implements Runnable {
 				socket.receive(packet);
 				int i = buff.getInt(0);
 				long lat = getLatency(i);
-				//System.out.printf("Received:%d. Latency : %d%n", i, lat);
 				buffer.set(i, lat);
-				setChanged();
-				synchronized (this) {
-					notifyAll();
-				}
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -97,22 +88,6 @@ public class Monitor extends Observable implements Runnable {
 			setChanged();
 			super.notifyObservers();
 			lastUpdate = System.currentTimeMillis();
-		}
-	}
-
-	private class NotifyThread implements Runnable {
-		@Override
-		public void run() {
-			try {
-				while (!Thread.currentThread().isInterrupted()) {
-					synchronized (Monitor.this) {
-						wait();
-					}
-					notifyObservers();
-				}
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
 		}
 	}
 
