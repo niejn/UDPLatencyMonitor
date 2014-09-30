@@ -30,7 +30,7 @@ public class GUI extends MouseAdapter implements MouseMotionListener, Observer {
 		window = new JFrame("Latency Monitor");
 		Dimension d = new Dimension((int) latency.getPreferredSize().getWidth(), 400);
 		window.setMinimumSize(d);
-		TextBufferDisplayer textArea = new TextBufferDisplayer(80);
+		TextBufferDisplayer textArea = new TextBufferDisplayer();
 
 		JToolBar toolBar = new JToolBar(JToolBar.HORIZONTAL);
 		toolBar.setPreferredSize(new Dimension(650, 30));

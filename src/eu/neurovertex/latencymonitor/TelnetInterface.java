@@ -46,15 +46,15 @@ public class TelnetInterface extends Observable implements Runnable, Closeable {
 			boolean first = true;
 			String line;
 			while ((line = in.readLine()) != null) {
+				setChanged();
+				notifyObservers(line);
 				if (first) {
 					first = false;
 					setChanged();
+					notifyObservers("Successfully connected to OpenVPN's tenlet interface");
 					inputLine("log on");
 					inputLine("echo on");
-					notifyObservers("Successfully connected to OpenVPN's tenlet interface");
 				}
-				setChanged();
-				notifyObservers(line);
 			}
 		} catch (SocketException ignore) {}
 		catch (IOException e) {

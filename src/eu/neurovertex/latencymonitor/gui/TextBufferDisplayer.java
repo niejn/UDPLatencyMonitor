@@ -2,7 +2,6 @@ package eu.neurovertex.latencymonitor.gui;
 
 import javax.swing.*;
 import javax.swing.text.DefaultCaret;
-import java.awt.*;
 import java.util.Observable;
 import java.util.Observer;
 
@@ -12,8 +11,8 @@ import java.util.Observer;
  */
 public class TextBufferDisplayer extends JTextArea implements Observer {
 
-	public TextBufferDisplayer(int lines) {
-		super("EMPTY TEXTAREA");
+	public TextBufferDisplayer() {
+		super("");
 		setEditable(false);
 		setCaretPosition(getDocument().getLength());
 		((DefaultCaret)getCaret()).setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
