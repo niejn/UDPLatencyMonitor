@@ -21,7 +21,7 @@ public class Monitor extends Observable implements Runnable {
 	private final int port;
 	private long startTime;
 	private Thread thread;
-	private volatile int id = 0;
+	private volatile long id = 0;
 	private volatile boolean stop = false;
 	private long lastUpdate = System.currentTimeMillis();
 
@@ -42,11 +42,11 @@ public class Monitor extends Observable implements Runnable {
 		this(InetAddress.getByName(hostname), port, delay);
 	}
 
-	public long getPingTime(int id) {
+	public long getPingTime(long id) {
 		return startTime + id * delay;
 	}
 
-	public long getLatency(int id) {
+	public long getLatency(long id) {
 		return System.currentTimeMillis() - getPingTime(id);
 	}
 
@@ -69,7 +69,7 @@ public class Monitor extends Observable implements Runnable {
 			while (!stop) {
 				buff.rewind();
 				socket.receive(packet);
-				int i = buff.getInt(0);
+				long i = buff.getLong(0);
 				long lat = getLatency(i);
 				buffer.set(i, lat);
 			}
@@ -94,17 +94,15 @@ public class Monitor extends Observable implements Runnable {
 	private class PingThread extends TimerTask {
 		@Override
 		public void run() {
-			ByteBuffer buff = ByteBuffer.allocate(4).putInt(0);
-			DatagramPacket packet = new DatagramPacket(buff.array(), 4, addr, port);
+			ByteBuffer buff = ByteBuffer.allocate(8).putLong(0L);
+			DatagramPacket packet = new DatagramPacket(buff.array(), 8, addr, port);
 			long time = System.currentTimeMillis();
 			try {
 				startTime = System.currentTimeMillis();
 				while (!stop) {
 					buff.rewind();
-					buff.putInt(id);
+					buff.putLong(id++);
 					buffer.add();
-					//System.out.printf("Sent:\t%d, %d : %d / %d%n", id, System.currentTimeMillis(), getPingTime(id), getLatency(id));
-					id++;
 					socket.send(packet);
 					time += delay;
 					notifyObservers();

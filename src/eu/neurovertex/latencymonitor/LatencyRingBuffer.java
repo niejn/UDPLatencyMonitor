@@ -1,7 +1,6 @@
 package eu.neurovertex.latencymonitor;
 
 import java.util.AbstractList;
-import java.util.List;
 
 /**
  * @author Neurovertex
@@ -9,7 +8,7 @@ import java.util.List;
  */
 public class LatencyRingBuffer extends AbstractList<Long> {
 	private int startIndex = 0;
-	private int offset = 0;
+	private long offset = 0;
 	private int size = 0;
 	private long[] buffer;
 
@@ -24,29 +23,33 @@ public class LatencyRingBuffer extends AbstractList<Long> {
 			throw new ArrayIndexOutOfBoundsException(index);
 		if (index < offset)
 			return 0L;
-		return buffer[(index - offset + startIndex) % buffer.length];
+		return buffer[((int) ((index - offset + startIndex) % buffer.length))];
 	}
 
 	@Override
 	public synchronized boolean add(Long aLong) {
 		if (size < buffer.length)
-			size ++;
+			size++;
 		else {
 			startIndex = (startIndex + 1) % buffer.length;
-			offset ++;
+			offset++;
 		}
-		buffer[(startIndex + size)%buffer.length] = aLong;
+		buffer[((startIndex + size) % buffer.length)] = aLong;
 		return true;
 	}
 
 	@Override
-	public synchronized Long set(int index, Long element) {
+	public Long set(int index, Long element) {
+		return set((long) index, element);
+	}
+
+	public synchronized Long set(long index, Long element) {
 		if (index < 0 || index - offset >= size)
-			throw new ArrayIndexOutOfBoundsException(index);
+			throw new ArrayIndexOutOfBoundsException((int) index);
 		if (index < offset)
 			return 0L;
-		Long val = buffer[(index - offset + startIndex) % buffer.length];
-		buffer[(index - offset + startIndex) % buffer.length] = element;
+		Long val = buffer[((int) ((index - offset + startIndex) % buffer.length))];
+		buffer[((int) ((index - offset + startIndex) % buffer.length))] = element;
 		return val;
 	}
 
@@ -64,12 +67,13 @@ public class LatencyRingBuffer extends AbstractList<Long> {
 			throw new IllegalArgumentException("array size must match internal buffer size");
 		if (buff == null)
 			buff = new long[buffer.length];
-		System.arraycopy(buffer, startIndex, buff, 0, buffer.length-startIndex);
+		System.arraycopy(buffer, startIndex, buff, 0, buffer.length - startIndex);
 		if (startIndex > 0)
-			System.arraycopy(buffer, 0, buff, buffer.length-startIndex, startIndex);
+			System.arraycopy(buffer, 0, buff, buffer.length - startIndex, startIndex);
 		return buff;
 	}
 
 	long[] getInternalBuffer() {
 		return buffer.clone();
-	}}
+	}
+}
