@@ -6,7 +6,6 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.Observable;
-import java.util.Timer;
 import java.util.TimerTask;
 
 /**
@@ -19,7 +18,7 @@ public class Monitor extends Observable implements Runnable {
 	private final int delay;
 	private final LatencyRingBuffer buffer;
 	private final int port;
-	private long startTime;
+	public long startTime;
 	private Thread thread;
 	private volatile long id = 0;
 	private volatile boolean stop = false;
@@ -30,7 +29,7 @@ public class Monitor extends Observable implements Runnable {
 		this.addr = addr;
 		this.port = port;
 		socket = new DatagramSocket();
-		System.out.println("Receive buffer : "+ socket.getReceiveBufferSize());
+		System.out.println("Receive buffer : " + socket.getReceiveBufferSize());
 		buffer = new LatencyRingBuffer(1024);
 	}
 
@@ -54,7 +53,8 @@ public class Monitor extends Observable implements Runnable {
 		thread = new Thread(this);
 		thread.setDaemon(true);
 		thread.start();
-		new Timer(true).scheduleAtFixedRate(new PingThread(), delay, delay);
+		//new Timer(true).scheduleAtFixedRate(new PingThread(), delay, delay);
+		new Thread(new PingThread()).start();
 	}
 
 	public synchronized void stopMonitor() {
@@ -70,8 +70,10 @@ public class Monitor extends Observable implements Runnable {
 				buff.rewind();
 				socket.receive(packet);
 				long i = buff.getLong(0);
-				long lat = getLatency(i);
-				buffer.set(i, lat);
+				if (i <= id) { // True unless a reset just happened - see PingThread#run
+					long lat = getLatency(i);
+					buffer.set(i, lat);
+				}
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -96,7 +98,7 @@ public class Monitor extends Observable implements Runnable {
 		public void run() {
 			ByteBuffer buff = ByteBuffer.allocate(8).putLong(0L);
 			DatagramPacket packet = new DatagramPacket(buff.array(), 8, addr, port);
-			long time = System.currentTimeMillis();
+			long time;
 			try {
 				startTime = System.currentTimeMillis();
 				while (!stop) {
@@ -104,9 +106,16 @@ public class Monitor extends Observable implements Runnable {
 					buff.putLong(id++);
 					buffer.add();
 					socket.send(packet);
-					time += delay;
+					time = startTime + id * delay;
 					notifyObservers();
-					Thread.sleep(time - System.currentTimeMillis());
+					if (System.currentTimeMillis() - time > 5 * delay) {
+						System.out.println("Huge lag detected - Assuming computer was put to sleep/hibernation");
+						buffer.reset();
+						time = System.currentTimeMillis() + delay;
+						startTime = time;
+						id = 0;
+					}
+					Thread.sleep(Math.max(10, time - System.currentTimeMillis()));
 				}
 			} catch (IOException | InterruptedException e) {
 				e.printStackTrace();

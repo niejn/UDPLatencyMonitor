@@ -1,6 +1,7 @@
 package eu.neurovertex.latencymonitor;
 
 import java.util.AbstractList;
+import java.util.Arrays;
 
 /**
  * @author Neurovertex
@@ -36,6 +37,13 @@ public class LatencyRingBuffer extends AbstractList<Long> {
 		}
 		buffer[((startIndex + size) % buffer.length)] = aLong;
 		return true;
+	}
+
+	public synchronized void reset() {
+		Arrays.fill(buffer, 0L);
+		size = 0;
+		offset = 0;
+		startIndex = 0;
 	}
 
 	@Override
