@@ -6,6 +6,8 @@ import eu.neurovertex.latencymonitor.gui.LatencyDisplayPanel;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.Observable;
+import java.util.Observer;
 import java.util.Optional;
 import java.util.prefs.BackingStoreException;
 import java.util.prefs.Preferences;
@@ -15,8 +17,7 @@ import java.util.prefs.Preferences;
  *         Date: 27/05/2014, 16:11
  */
 public class Main {
-	public static final boolean OPENVPN = true;
-	public static void main(String[] args) throws IOException {
+	public static void main(String[] args) throws IOException, InterruptedException {
 		Preferences prefs = Preferences.userNodeForPackage(Main.class);
 		String host;
 		int port, delay;
@@ -46,17 +47,32 @@ public class Main {
 		}
 		System.out.printf("Parameters : %s:%d, %dms delay%n", host, port, delay);
 		Monitor monitor = new Monitor(host, port, delay);
-		TelnetInterface telnet = (OPENVPN) ? new TelnetInterface() : null;
-		new GUI(new LatencyDisplayPanel(monitor), Optional.ofNullable(telnet));
-		monitor.start();
-		if (OPENVPN)
+		Optional<TelnetInterface> opTelnet;
+		{
+			TelnetInterface telnet = new TelnetInterface();
+			final Observer waiter = new Observer(){
+				@Override
+				public synchronized void update(Observable o, Object arg) {
+					notifyAll();
+				}
+			};
+			telnet.addObserver(waiter);
 			telnet.start();
-		if (!OPENVPN)
-			return;
-		BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
-		String str;
-		while ((str = in.readLine()) != null) {
-			telnet.inputLine(str);
+			while (telnet.isTrying() && !telnet.isConnected())
+				synchronized (waiter) {
+					waiter.wait();
+				}
+			opTelnet = telnet.isConnected() ? Optional.of(telnet) : Optional.empty();
+			System.out.println(opTelnet.isPresent() ? "Connected to Telnet" : "Couldn't connect to Telnet");
+
+			monitor.start();
+			new GUI(new LatencyDisplayPanel(monitor), opTelnet);
+		}
+		if (opTelnet.isPresent()) {
+			BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
+			String str;
+			while ((str = in.readLine()) != null)
+				opTelnet.get().inputLine(str);
 		}
 	}
 }

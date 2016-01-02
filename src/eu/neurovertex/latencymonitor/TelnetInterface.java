@@ -3,7 +3,6 @@ package eu.neurovertex.latencymonitor;
 import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.net.SocketException;
 import java.util.Observable;
 
 /**
@@ -13,62 +12,96 @@ import java.util.Observable;
 public class TelnetInterface extends Observable implements Runnable, Closeable {
 	private Socket socket;
 	private PrintWriter input;
+	private boolean retry = false;
 
-	public TelnetInterface() {}
+	public TelnetInterface() {
+	}
 
 	public void start() {
-		try {
-			socket = new Socket(InetAddress.getLoopbackAddress(), 444);
-			input = new PrintWriter(socket.getOutputStream());
-			Thread t = new Thread(this, "TelnetThread");
-			t.setDaemon(true);
-			t.start();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+		Thread t = new Thread(this, "TelnetThread");
+		t.setDaemon(true);
+		t.start();
 	}
 
 	public void inputLine(String line) {
 		if (socket == null)
-			throw new IllegalStateException();
-		setChanged();
-		notifyObservers(line);
-		if (socket.isConnected()) {
-			input.println(line);
-			input.flush();
-		} else
-			System.err.println("Socket isn't connected");
+			return;
+		notifyObservers("> "+ line);
+		if (socket != null && socket.isConnected()) {
+			try {
+				input.println(line);
+				input.flush();
+				return;
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		System.err.println("Socket isn't connected");
 	}
 
 	@Override
 	public void run() {
-		try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
-			boolean first = true;
-			String line;
-			while ((line = in.readLine()) != null) {
-				setChanged();
-				notifyObservers(line);
-				if (first) {
-					first = false;
-					setChanged();
+		while (!Thread.currentThread().isInterrupted()) {
+			if (socket == null) {
+				try {
+					notifyObservers("Attempting to connect to OpenVPN ...");
+					socket = new Socket(InetAddress.getLoopbackAddress(), 444);
+					input = new PrintWriter(socket.getOutputStream());
 					notifyObservers("Successfully connected to OpenVPN's tenlet interface");
 					inputLine("log on");
 					inputLine("echo on");
+				} catch (IOException e) {
+					notifyObservers("Couldn't open telnet connection");
+					while (!retry)
+						synchronized (this) {
+							try {
+								wait();
+							} catch (InterruptedException ignore) {}
+						}
+					retry = false;
 				}
-			}
-		} catch (SocketException ignore) {}
-		catch (IOException e) {
-			e.printStackTrace();
+			} else
+				try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+					String line;
+					while ((line = in.readLine()) != null) {
+						notifyObservers(line);
+					}
+				} catch (IOException e) {
+					notifyObservers("Error on the telnet thread. ");
+					socket = null;
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException ignore) {}
+				}
 		}
-		setChanged();
 		notifyObservers("Closing telnet listen thread");
 	}
 
 	@Override
+	public void notifyObservers(Object arg) {
+		setChanged();
+		super.notifyObservers(arg);
+	}
+
+	public boolean isConnected() {
+		return socket != null && socket.isConnected();
+	}
+
+	public boolean isTrying() {
+		return retry;
+	}
+
+	@Override
 	public void close() {
-		inputLine("exit");
 		try {
+			inputLine("exit");
 			socket.close();
-		} catch (IOException ignore) {}
+		} catch (Exception ignore) {
+		}
+	}
+
+	public synchronized void retry() {
+		this.retry = true;
+		notifyAll();
 	}
 }

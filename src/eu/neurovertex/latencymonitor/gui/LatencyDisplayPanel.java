@@ -24,7 +24,8 @@ public class LatencyDisplayPanel extends JPanel implements Observer {
 	}
 
 	public LatencyDisplayPanel(Observable obs, LatencyRingBuffer ringBuffer) { // For debug purposes
-		setMinimumSize(new Dimension(500, 100));
+		setMinimumSize(new Dimension(500, 200));
+		setPreferredSize(new Dimension(500, 300));
 		setSize(500, 150);
 		setMaximumSize(new Dimension(650, 500));
 		image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);

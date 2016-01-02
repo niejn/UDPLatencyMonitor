@@ -1,7 +1,7 @@
 package eu.neurovertex.latencymonitor.gui;
 
 
-import eu.neurovertex.latencymonitor.Main;
+import eu.neurovertex.latencymonitor.Monitor;
 import eu.neurovertex.latencymonitor.TelnetInterface;
 
 import javax.swing.*;
@@ -17,86 +17,116 @@ import java.util.Optional;
  *         Date: 29/09/2014, 16:45
  */
 public class GUI extends MouseAdapter implements MouseMotionListener, Observer {
-	private JFrame window;
-	private LatencyDisplayPanel latency;
+	private final Optional<JScrollPane> scroll;
+	private final JFrame window;
+	private final LatencyDisplayPanel latency;
+	private final Optional<JTextField> inputField;
 	private long[] panelBuffer = new long[0];
 	private Long lastPosition;
 
-	public GUI(LatencyDisplayPanel latency, Optional<TelnetInterface> telnet) throws IOException {
+	public GUI(LatencyDisplayPanel latency, Optional<TelnetInterface> opTelnet) throws IOException {
 		this.latency = latency;
 		latency.setGui(this);
 		latency.addMouseMotionListener(this);
 		latency.addMouseListener(this);
 		window = new JFrame("Latency Monitor");
-		Dimension d = new Dimension((int) latency.getPreferredSize().getWidth(), 400);
+		Dimension d = new Dimension((int) latency.getPreferredSize().getWidth(), 250);
 		window.setMinimumSize(d);
 		TextBufferDisplayer textArea = new TextBufferDisplayer();
 
-		JToolBar toolBar = new JToolBar(JToolBar.HORIZONTAL);
-		toolBar.setPreferredSize(new Dimension(650, 30));
-		toolBar.setFloatable(false);
-		JButton button;
-		ActionListener buttonListener = e -> {
-			if (e.getActionCommand().startsWith("signal"))
-				telnet.ifPresent(t -> t.inputLine(e.getActionCommand()));
-			else {
-				if (e.getActionCommand().equals("stop"))
-					telnet.ifPresent(TelnetInterface::close);
-				ProcessObservable proc = new ProcessObservable("net", e.getActionCommand(), "OpenVPNService");
-				if (e.getActionCommand().equals("start"))
-					new Thread(() -> {
-						proc.waitProcess();
-						telnet.ifPresent(TelnetInterface::start);
-					});
-				proc.addObserver(textArea);
-				proc.start();
-			}
-		};
-		toolBar.add(button = new JButton("USR1"));
-		button.setActionCommand("signal SIGUSR1");
-		button.addActionListener(buttonListener);
-
-		toolBar.add(button = new JButton("HUP"));
-		button.setActionCommand("signal SIGHUP");
-		button.addActionListener(buttonListener);
-
-		toolBar.add(button = new JButton("Stop"));
-		button.setActionCommand("stop");
-		button.addActionListener(buttonListener);
-
-		toolBar.add(button = new JButton("Start"));
-		button.setActionCommand("start");
-		button.addActionListener(buttonListener);
-
-		telnet.ifPresent(t -> t.addObserver(textArea));
-		JScrollPane scroll = new JScrollPane(textArea, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-		scroll.setPreferredSize(new Dimension(650, 200));
-		scroll.setMaximumSize(new Dimension(650, 200));
-		scroll.setMinimumSize(new Dimension(200, 50));
-
-		JTextField inputField = new JTextField(50);
-		inputField.addActionListener(e -> {
-			telnet.ifPresent(t->t.inputLine(inputField.getText()));
-			inputField.setText("");
-		});
-		inputField.setMaximumSize(new Dimension(650, 21));
-
 		window.getContentPane().setLayout(new BoxLayout(window.getContentPane(), BoxLayout.Y_AXIS));
-		if (Main.OPENVPN)
+
+		if (!opTelnet.isPresent()) {
+			inputField = Optional.empty();
+			scroll = Optional.empty();
+			window.add(latency);
+			window.add(new LatencyInformationPanel());
+		} else {
+			TelnetInterface telnet = opTelnet.get();
+			JScrollPane scroll = new JScrollPane(textArea, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+			this.scroll = Optional.of(scroll);
+			scroll.setPreferredSize(new Dimension(650, 100));
+			scroll.setMaximumSize(new Dimension(650, 200));
+			scroll.setMinimumSize(new Dimension(200, 50));
+
+			JTextField inputField = new JTextField(50);
+			this.inputField = Optional.of(inputField);
+			inputField.addActionListener(e -> {
+				telnet.inputLine(inputField.getText());
+				inputField.setText("");
+			});
+			inputField.setMaximumSize(new Dimension(650, 21));
+
+			JToolBar toolBar = new JToolBar(JToolBar.HORIZONTAL);
+			toolBar.setPreferredSize(new Dimension(650, 30));
+			toolBar.setFloatable(false);
+			JButton button;
+			ActionListener buttonListener = e -> {
+				if (e.getActionCommand().startsWith("signal"))
+					telnet.inputLine(e.getActionCommand());
+				else if (e.getActionCommand().equals("show") || e.getActionCommand().equals("hide")) {
+					scroll.setVisible(e.getActionCommand().equals("show"));
+					inputField.setVisible(e.getActionCommand().equals("show"));
+				} else if (e.getActionCommand().equals("retry")) {
+					telnet.retry();
+				} else {
+					if (e.getActionCommand().equals("stop"))
+						telnet.close();
+					ProcessObservable proc = new ProcessObservable("net", e.getActionCommand(), "OpenVPNService");
+					if (e.getActionCommand().equals("start"))
+						new Thread(() -> {
+							proc.waitProcess();
+							telnet.start();
+						});
+					proc.addObserver(textArea);
+					proc.start();
+				}
+			};
+			toolBar.add(button = new JButton("USR1"));
+			button.setActionCommand("signal SIGUSR1");
+			button.addActionListener(buttonListener);
+
+			toolBar.add(button = new JButton("HUP"));
+			button.setActionCommand("signal SIGHUP");
+			button.addActionListener(buttonListener);
+
+			toolBar.add(button = new JButton("Stop"));
+			button.setActionCommand("stop");
+			button.addActionListener(buttonListener);
+
+			toolBar.add(button = new JButton("Start"));
+			button.setActionCommand("start");
+			button.addActionListener(buttonListener);
+
+			toolBar.add(button = new JButton("Show OVPN"));
+			button.setActionCommand("show");
+			button.addActionListener(buttonListener);
+
+			toolBar.add(button = new JButton("Hide OVPN"));
+			button.setActionCommand("hide");
+			button.addActionListener(buttonListener);
+
+			toolBar.add(button = new JButton("Retry OVPN"));
+			button.setActionCommand("retry");
+			button.addActionListener(buttonListener);
+
+			telnet.addObserver(textArea);
+			telnet.addObserver(this);
+
 			window.add(toolBar);
-		window.add(latency);
-		window.add(new LatencyInformationPanel());
-		if (Main.OPENVPN) {
+			window.add(latency);
+			window.add(new LatencyInformationPanel());
 			window.add(scroll);
 			window.add(inputField);
+			window.addWindowListener(new WindowAdapter() {
+				@Override
+				public void windowClosing(WindowEvent e) {
+					telnet.close();
+				}
+			});
 		}
+
 		window.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-		window.addWindowListener(new WindowAdapter() {
-			@Override
-			public void windowClosing(WindowEvent e) {
-				telnet.ifPresent(TelnetInterface::close);
-			}
-		});
 
 		window.pack();
 		window.setVisible(true);
@@ -104,7 +134,7 @@ public class GUI extends MouseAdapter implements MouseMotionListener, Observer {
 
 	@Override
 	public void update(Observable o, Object arg) {
-		if (arg != null && arg instanceof long[])
+		if (o instanceof Monitor && arg != null && arg instanceof long[])
 			panelBuffer = (long[]) arg;
 		window.repaint();
 	}
@@ -142,7 +172,7 @@ public class GUI extends MouseAdapter implements MouseMotionListener, Observer {
 			long sum = 0;
 			int count = 0, lost = 0, last = 0;
 			boolean found = false;
-			for (int i = panelBuffer.length - 1; i > 0 && i > panelBuffer.length-1-latency.getRingBuffer().size() && count < 100; i--) {
+			for (int i = panelBuffer.length - 1; i > 0 && i > panelBuffer.length - 1 - latency.getRingBuffer().size() && count < 100; i--) {
 				if (!found && panelBuffer[i] > 0) {
 					found = true;
 					last = panelBuffer.length - 1 - i;
