@@ -65,9 +65,9 @@ public class Main {
 			opTelnet = telnet.isConnected() ? Optional.of(telnet) : Optional.empty();
 			System.out.println(opTelnet.isPresent() ? "Connected to Telnet" : "Couldn't connect to Telnet");
 
-			monitor.start();
-			new GUI(new LatencyDisplayPanel(monitor), opTelnet);
 		}
+		new GUI(new LatencyDisplayPanel(monitor), opTelnet);
+		monitor.start();
 		if (opTelnet.isPresent()) {
 			BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
 			String str;

@@ -47,14 +47,13 @@ public class Monitor extends Observable implements Runnable {
     }
 
     public long getLatency(long id) {
-        return System.currentTimeMillis() - getPingTime(id);
+        return Math.max(1L, System.currentTimeMillis() - getPingTime(id));
     }
 
     public synchronized void start() {
         thread = new Thread(this);
         thread.setDaemon(true);
         thread.start();
-        //new Timer(true).scheduleAtFixedRate(new PingThread(), delay, delay);
         new Thread(new PingThread()).start();
     }
 

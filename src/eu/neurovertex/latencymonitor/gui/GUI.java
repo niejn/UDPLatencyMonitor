@@ -32,7 +32,6 @@ public class GUI extends MouseAdapter implements MouseMotionListener, Observer {
 		window = new JFrame("Latency Monitor");
 		Dimension d = new Dimension((int) latency.getPreferredSize().getWidth(), 250);
 		window.setMinimumSize(d);
-		TextBufferDisplayer textArea = new TextBufferDisplayer();
 
 		window.getContentPane().setLayout(new BoxLayout(window.getContentPane(), BoxLayout.Y_AXIS));
 
@@ -43,6 +42,7 @@ public class GUI extends MouseAdapter implements MouseMotionListener, Observer {
 			window.add(new LatencyInformationPanel());
 		} else {
 			TelnetInterface telnet = opTelnet.get();
+			TextBufferDisplayer textArea = new TextBufferDisplayer();
 			JScrollPane scroll = new JScrollPane(textArea, ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS, ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 			this.scroll = Optional.of(scroll);
 			scroll.setPreferredSize(new Dimension(650, 100));

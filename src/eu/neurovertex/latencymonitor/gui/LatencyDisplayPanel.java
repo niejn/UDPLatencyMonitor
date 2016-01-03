@@ -15,7 +15,8 @@ import java.util.Observer;
  */
 public class LatencyDisplayPanel extends JPanel implements Observer {
 	private final LatencyRingBuffer ringBuffer;
-	private BufferedImage image, background;
+	private final Color[] colors;
+	private BufferedImage image;
 	private long[] buff;
 	private GUI gui;
 
@@ -33,20 +34,16 @@ public class LatencyDisplayPanel extends JPanel implements Observer {
 		setBackground(Color.BLACK);
 		this.ringBuffer = ringBuffer;
 		obs.addObserver(this);
+		colors = generateColors(32);
 	}
 
-	private BufferedImage generateBackground() {
-		BufferedImage img = new BufferedImage(getWidth(), (getHeight() > 0) ? getHeight() : 1, BufferedImage.TYPE_INT_RGB);
-		float h = img.getHeight();
-		int w = getWidth();
-		Graphics2D g = img.createGraphics();
-		for (int y = 0; y < h; y++) {
-			float val = 1f - (2f+(1f-y/h)*2f) / 3f;
-			Color c = new Color(Color.HSBtoRGB(Math.max(val, 0f), 1.0f, 0.5f));
-			g.setColor(c);
-			g.drawLine(0, y, w - 1, y);
+	private static Color[] generateColors(int he) {
+		Color[] colors = new Color[he];
+		for (int y = 0; y < (float) he; y++) {
+			float val = (2f+(1f-y/ (float) he)*2f) / 3f;
+			colors[y] = new Color(Color.HSBtoRGB(Math.max(val, 0f), 1.0f, 0.5f));
 		}
-		return img;
+		return colors;
 	}
 
 	public void setGui(GUI gui) {
@@ -74,23 +71,22 @@ public class LatencyDisplayPanel extends JPanel implements Observer {
 		offset = Math.max(w - n, 0);
 		buffOffset = (n > w) ? n - w : 0;
 		BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-		if (background == null || w != background.getWidth() || h != background.getHeight())
-			background = generateBackground();
 		Graphics2D g = img.createGraphics();
-		g.drawImage(background, offset, 0, null);
-		Color bg = Color.black, noReply = Color.BLUE;
+		Color noReply = Color.BLUE;
 		long[] panelBuffer = new long[w];
-		for (int i = 0; i + offset < w && i < n; i++) {
+		for (int i = 0; i + offset < w && i < n - 1; i++) {
 			int x = i + offset;
-			if (buff[i + buffOffset] <= 0 && i < n - 1) {
+			if (buff[i + buffOffset] <= 0) {
 				g.setColor(noReply);
 				g.drawLine(x, 0, x, h - 1);
 				panelBuffer[x] = -1;
 			} else {
 				panelBuffer[x] = buff[i + buffOffset];
-				g.setColor(bg);
-				float val = 1f - Math.min((float) (Math.sqrt(buff[i + buffOffset]) / 70), 1f); // 70 ~ sqrt(5000)
-				g.drawLine(x, 0, x, (int) (val * h - 1));
+				int height = (int) ((Math.min((float) (Math.sqrt(buff[i + buffOffset]) / 70), 1f))* (h - 1)); // 70 ~ sqrt(5000)
+				int val = (int)Math.min(Math.pow((Math.max(buff[i + buffOffset] - 30., 0)) / 5000., .4) * colors.length, colors.length-1); // < 30ms = green
+				g.setColor(colors[val]);
+				//System.out.printf("%d : %d : %d : %s%n", buff[i + buffOffset], val, height, colors[val]);
+				g.drawLine(x, h-1, x, h - 1 - height);
 			}
 		}
 		synchronized (this) {
